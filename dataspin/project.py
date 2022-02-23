@@ -54,7 +54,19 @@ class DataProcessConfig:
     fetch_args: Optional[dict] = field(default_factory=dict)
     description: Optional[str] = ""
     processes: Optional[List[ProcessFunctionConfig]] = field(default_factory=list)
-    # process_flow: Optional[dict] = field(default_factory=dict)
+
+@dataclass
+class DataFieldConfig:
+    name: str
+    type: str
+    description: str
+
+@dataclass
+class DataViewConfig:
+    table_name: str
+    table_file_format: str
+    table_file_location: str
+    fields:Optional[List[DataFieldConfig]] = field(default_factory=list)
 
 @dataclass
 class ProjectConfig:
@@ -65,7 +77,8 @@ class ProjectConfig:
     pk_caches: Optional[List[PrimaryKeyCacheConfig]] = field(default_factory=list)
     webhooks: Optional[List[WebhookConfig]] = field(default_factory=list)
     data_processes: Optional[List[DataProcessConfig]] = field(default_factory=list)
-
+    data_views:Optional[List[DataViewConfig]] = field(default_factory=list)
+    
     @classmethod
     def load(cls, project_fp):
         factory = dataclass_factory.Factory()

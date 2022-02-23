@@ -125,6 +125,8 @@ class DeduplicateFunction(FunctionMultiMixin,Function):
         if data_file.file_type == 'index':
             return data_file
         key = self.args['key']
+        table = self.args['table']
+        
         slide_window = self.args['slide_window']
         start_time,end_time = common.parse_duration(slide_window)
         file_paths = context.search_pk_files(start_time,end_time)

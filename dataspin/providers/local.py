@@ -76,3 +76,7 @@ class LocalStorageProvider:
             for line in lines:
                 _ = fo.write(line.encode('utf-8'))
         return save_path
+
+    def fetch_files(self):
+        for file_path in scantree(self.path):
+            yield file_path

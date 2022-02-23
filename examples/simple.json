@@ -24,11 +24,78 @@
             "url": "file://./tmp/index_target/"
         }
     ],
+    "dataviews":[
+        {
+            "table_name": "origin_data",
+            "table_file_format": "jsonl",
+            "table_file_location": "bytepower-server-data/datalog/origin/",
+            "fields": [
+                {
+                    "name": "app_id",
+                    "type": "string",
+                    "description": ""
+                },
+                {
+                    "name": "bp_timestamp",
+                    "type": "date",
+                    "description": ""
+                },
+                {
+                    "name": "event_id",
+                    "type": "string",
+                    "description": ""
+                },
+                {
+                    "name": "event_name",
+                    "type": "string",
+                    "description": ""
+                },
+                {
+                    "name" :"device",
+                    "type": "object",
+                    "description": "",
+                    "properties":[
+                        {
+                            "name": "brand",
+                            "type": "string",
+                            "description": ""
+                        },{
+                            "name": "os_type",
+                            "type": "string",
+                            "description": ""
+                        },{
+                            "name": "os_version",
+                            "type": "string",
+                            "description": ""
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "table_name": "pk_index",
+            "table_file_format": "jsonl",
+            "table_file_location": "bytepower-server-data/dataspin/pk-index/",
+            "fields": [
+                {
+                    "name": "event_id",
+                    "type": "string",
+                    "description": ""
+                },{
+                    "name": "app_id",
+                    "type": "string",
+                    "description": ""
+                }
+            ]
+        }
+    ]
+    ,
     "data_processes":[
         {
             "name": "split and build index",
             "description": "",
             "source": "local_simple_data",
+            "index_source": "index_target",
             "processes":[
                 {
                     "name":"split by app_id",
@@ -41,8 +108,7 @@
                     "name": "build primary key index",
                     "function": "pk_index",
                     "args": {
-                        "key": ["app_id","event_id"],
-                        "time_key":"bp_timestamp"
+                        "key": ["app_id","event_id"]
                     }
                 },
                 {

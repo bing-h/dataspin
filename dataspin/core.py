@@ -1,12 +1,13 @@
 import os
 import re
-from typing import Optional
+from typing import List, Optional
 import time
 import tempfile
 import importlib
 import json
 from boltons.fileutils import atomic_save
 from dataspin.metadata.pk_record import PKRecord, PKRecordSearch
+from dataspin.pkindex.pk_index import PKIndexCache
 
 from dataspin.providers import get_provider_class, get_provider
 from dataspin.utils.common import uuid_generator, marshal
@@ -165,6 +166,25 @@ class DataFile:
     def basename(self):
         return '{}{}'.format(self.name, self.ext)
 
+
+class Field:
+    def __init__(self,name,type,description) -> None:
+        self.name = name
+        self.type = type
+        self.description = description
+
+
+class DataView:
+    def __init__(self,conf) -> None:
+        self._conf = conf
+        self.table_name = self._conf.table_name
+        self.table_file_format = self._conf.table_file_format
+        self.table_file_location = self._conf.table_file_location
+        self.fields = []
+        for field_conf in self._conf.fields:
+            self.fields.append(Field(field_conf.name,field_conf.type,field_conf.description))
+    
+
 class DataTaskContext:
     def __init__(self, run_id, temp_dir, data_files,  **kwargs):
         self.run_id = run_id
@@ -212,13 +232,13 @@ class DataTaskContext:
         datafile =  DataFile(file_path=file_path, file_type=file_type,index_meta_info=index_meta_info)
         datafile.data_format = data_format
         return datafile
-    
-    def save_pk_metadata(self,index_meta_info):
-        PKRecord(**index_meta_info).save()
 
-    def search_pk_files(self,start_time,end_time):
-        return PKRecordSearch().search(start_time,end_time)
+    def is_deplicated(self,pk_value)->bool:
+        return self.engine.index_cache.get(pk_value)
 
+    def update_cache(self,):
+        self.engine.index_cache.update()
+        
     def get_storage(self, name):
         return self.engine.storages.get(name)
 
@@ -234,8 +254,6 @@ class DataProcess:
         self._fetch_args = conf.fetch_args
         self.engine = engine
         self._task_list = []
-        # self._process_flow = {}
-        # self._functions = {}
         self._load()
 
     def _load(self):
@@ -311,10 +329,12 @@ class SpinEngine:
         self.streams = {}
         self.storages = {}
         self.data_processes = {}
+        self.data_views = {}
         self.load()
         self.uuid = 'project_' + uuid_generator()
         self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
-    
+        self.index_cache = PKIndexCache()
+
     @property
     def working_dir(self):
         return self.config.working_dir
@@ -339,6 +359,11 @@ class SpinEngine:
         for process_conf in conf.data_processes:
             data_process = DataProcess(process_conf, self)
             self.data_processes[process_conf.name] = data_process
+        
+        for dataview_conf in conf.data_views:
+            dataview = self.DataView(dataview_conf)
+            self.data_views[dataview.table_name] = dataview
+        self.index_cache.load()
 
     def run(self):
         for process_name, process in self.data_processes.items():
