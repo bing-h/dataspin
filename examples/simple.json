@@ -24,7 +24,7 @@
             "url": "file://./tmp/index_target/"
         }
     ],
-    "dataviews":[
+    "data_views":[
         {
             "table_name": "origin_data",
             "table_file_format": "jsonl",
@@ -95,7 +95,7 @@
             "name": "split and build index",
             "description": "",
             "source": "local_simple_data",
-            "index_source": "index_target",
+            "index": {"time_window":"24h","source":"index_target","table":"pk_index"},
             "processes":[
                 {
                     "name":"split by app_id",
@@ -113,11 +113,7 @@
                 },
                 {
                     "name": "deduplicate by event_id",
-                    "function": "deduplicate",
-                    "args": {
-                        "key": ["event_id"],
-                        "slide_window": "24h-now"
-                    }
+                    "function": "deduplicate"
                 },
                 {
                     "name": "flatten json",
@@ -143,21 +139,6 @@
                     "args": {
                         "location": "index_target"
                     }
-                }
-            ],
-            "process_flow":[
-                {
-                    "split by app_id":
-                        [
-                            {
-                                "build primary key index":"save to index target"
-                            },
-                            {
-                                "deduplicate by event_id":{
-                                    "flatten json":["save to target","save to target 1"]
-                                }
-                            }
-                        ]
                 }
             ]
         }

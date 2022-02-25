@@ -10,6 +10,7 @@ from dataspin.metadata.pk_record import PKRecord, PKRecordSearch
 from dataspin.pkindex.pk_index import PKIndexCache
 
 from dataspin.providers import get_provider_class, get_provider
+from dataspin.utils import common
 from dataspin.utils.common import uuid_generator, marshal
 from dataspin.functions import creat_function_with
 from multiprocessing import Process, Pool
@@ -139,6 +140,11 @@ class ObjectStorage:
     def save_data(self, key, lines):
         return self.provider.save_data(key, lines)
 
+    def fetch_files(self):
+        for filepath in self.provider.fetch_files():
+            yield filepath
+
+
 class DataFunction:
     def __init__(self, name, args):
         self._name = name
@@ -194,6 +200,7 @@ class DataTaskContext:
         self.end_flag = False
         self.files_history = []
         self.engine = kwargs['engine']
+        self.process = kwargs['process']
     
     @property
     def data_file(self):
@@ -233,12 +240,9 @@ class DataTaskContext:
         datafile.data_format = data_format
         return datafile
 
-    def is_deplicated(self,pk_value)->bool:
-        return self.engine.index_cache.get(pk_value)
+    def is_deplicated(self,data)->bool:
+        return self.process.index_cache.is_exists(data)
 
-    def update_cache(self,):
-        self.engine.index_cache.update()
-        
     def get_storage(self, name):
         return self.engine.storages.get(name)
 
@@ -253,6 +257,9 @@ class DataProcess:
         self._source = conf.source
         self._fetch_args = conf.fetch_args
         self.engine = engine
+        self._pk_cache = None
+        self._pk_file_cache = set()
+        self._pk_storage = None
         self._task_list = []
         self._load()
 
@@ -261,6 +268,25 @@ class DataProcess:
             function_name = proc.function
             function = creat_function_with(function_name, proc.args)
             self._task_list.append(function)
+        time_window = self.conf.index.time_window
+        source = self.conf.index.source
+        table = self.conf.index.table
+        fields = []
+        for f in self.engine.data_views[table].fields:
+            fields.append(f.name)
+        expire_time = common.parse_interval(time_window)
+        self.index_cache = PKIndexCache(expire_time,fields)
+        self._pk_storage = self.engine.storages[source]
+        self.load_or_update_pk_cache()
+
+    def load_or_update_pk_cache(self):
+        files = []
+        for filepath in self._pk_storage.fetch_files():
+            if filepath in self._pk_file_cache:
+                continue
+            files.append(filepath)
+            self._pk_file_cache.add(filepath)
+        self.index_cache.load(files)   
 
     def run(self):
         def append_or_extend(datafiles, newfile):
@@ -276,15 +302,14 @@ class DataProcess:
         os.makedirs(temp_dir, exist_ok=True)
         if self._source in self.engine.sources:
             data_source = self.engine.sources.get(self._source)
-            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
+            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine,process=self)
             stream = data_source.fetch(self._fetch_args, context)
         elif self._source in self.engine.streams:
             stream = self.engine.streams.get(self._source)
         else:
             raise Exception(f'source {self._source} is not specified.')
-
         while True:
-            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine)
+            context = DataTaskContext(run_id, temp_dir, data_files=[], engine=self.engine,process=self)
             if stream.get(context) == None:
                 break
             if context.eof:
@@ -305,7 +330,7 @@ class DataProcess:
                             append_or_extend(new_data_files, new_data_file)
                 context.set_data_files(new_data_files)
             stream.task_done(context)
-
+            self.load_or_update_pk_cache()
 
     @property
     def name(self):
@@ -330,10 +355,9 @@ class SpinEngine:
         self.storages = {}
         self.data_processes = {}
         self.data_views = {}
-        self.load()
         self.uuid = 'project_' + uuid_generator()
         self.temp_dir_path = os.path.join(os.getcwd(), self.uuid)
-        self.index_cache = PKIndexCache()
+        self.load()
 
     @property
     def working_dir(self):
@@ -356,15 +380,14 @@ class SpinEngine:
         for storage in conf.storages:
             self.storages[storage.name] = ObjectStorage(storage)
 
+        for dataview_conf in conf.data_views:
+            dataview = DataView(dataview_conf)
+            self.data_views[dataview.table_name] = dataview
+
         for process_conf in conf.data_processes:
             data_process = DataProcess(process_conf, self)
             self.data_processes[process_conf.name] = data_process
         
-        for dataview_conf in conf.data_views:
-            dataview = self.DataView(dataview_conf)
-            self.data_views[dataview.table_name] = dataview
-        self.index_cache.load()
-
     def run(self):
         for process_name, process in self.data_processes.items():
             self.run_process(process)

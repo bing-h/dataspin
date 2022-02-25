@@ -48,9 +48,16 @@ class ProcessFunctionConfig:
     args: Optional[dict] = field(default_factory=dict)
 
 @dataclass
+class IndexConfig:
+    time_window:str
+    source:str
+    table:str
+
+@dataclass
 class DataProcessConfig:
     name: str
     source: str
+    index:IndexConfig
     fetch_args: Optional[dict] = field(default_factory=dict)
     description: Optional[str] = ""
     processes: Optional[List[ProcessFunctionConfig]] = field(default_factory=list)
