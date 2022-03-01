@@ -24,12 +24,12 @@ class PKIndexCache:
             self._update_cache_value(data)
 
     def _update_cache_value(self, data):
-        pk = []
+        pk_value = []
         for pk_key in self._pk_keys:
-            pk.append(data[pk_key])
-        p = ''.join(pk)
-        self._cache.add(p)
-        self._precache.add(p)
+            pk_value.append(data[pk_key])
+        pk_value = tuple(pk_value)
+        self._cache.add(pk_value)
+        self._precache.add(pk_value)
 
     def update_expire_time(self, expire_time):
         self._expire_time = expire_time
@@ -50,11 +50,11 @@ class PKIndexCache:
         pk_entrys {"app_id":"","event_id":""}
         """
         self._expire()
-        value = []
+        pk_value = []
         for k in self._pk_keys:
-            value.append(pk_entrys[k])
-        p = ''.join(value)
-        if p not in self._cache:
-            self._update_cache_value(p)
+            pk_value.append(pk_entrys[k])
+        pk_value = tuple(pk_value)
+        if pk_value not in self._cache:
+            self._update_cache_value(pk_entrys)
             return False
         return True
